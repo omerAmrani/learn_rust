@@ -1,34 +1,24 @@
+use crate::server::{create_user_handler, get_users_handler, Users};
+use axum::{Router, routing::get, routing::post};
 use std::sync::Arc;
-use axum::{routing::{get, post}, Router, Json};
-use crate::server::{User, Users};
+use axum::extract::Extension;
 
 mod server;
 mod basic;
 
 #[tokio::main]
 async fn main() {
-  let users = Arc::new(Users::new());
+    let users = Arc::new(Users::new());
 
-  let app = Router::new()
-      .route("/users", get({
-        let users = Arc::clone(&users);
-        move || {
-          let users = Arc::clone(&users);
-          async move { users.get_users().await }
-        }
-      }))
-      .route("/users", post({
-        let users = Arc::clone(&users);
-        move |body: Json<User>| {
-          let users = Arc::clone(&users);
-          async move { users.create_user(body).await }
-        }
-      }));
+    let app = Router::new()
+        .route("/users", get(get_users_handler))
+        .route("/users", post(create_user_handler))
+        .layer(Extension(users));
 
   println!("Started running on 0.0.0.0:3000 ");
 
-  let listener = tokio::net::TcpListener::
-    bind("0.0.0.0:3000").await.unwrap();
-  axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
 }
+
