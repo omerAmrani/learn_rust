@@ -1,4 +1,4 @@
-use crate::server::{create_user_handler, get_users_handler, Users};
+use crate::server::{create_user_handler, get_user_handler, get_users_handler, Users};
 use axum::{Router, routing::get, routing::post};
 use std::sync::Arc;
 use axum::extract::Extension;
@@ -13,6 +13,8 @@ async fn main() {
     let app = Router::new()
         .route("/users", get(get_users_handler))
         .route("/users", post(create_user_handler))
+        .route("/users/:id", get(get_user_handler))
+
         .layer(Extension(users));
 
   println!("Started running on 0.0.0.0:3000 ");
