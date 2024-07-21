@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc};
 use axum::http::{StatusCode};
 use axum::{Extension, Json};
@@ -6,40 +7,46 @@ use axum::response::{IntoResponse};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     name: String,
-    id: u32
+    password: String
 }
 
 #[derive(Clone)]
 pub struct Users {
-    list: Arc<Mutex<Vec<User>>>,
+    list: Arc<Mutex<HashMap<u16, User>>>,
 }
 
 impl Users {
     pub fn new() -> Self {
         Users {
-            list: Arc::new(Mutex::new(Vec::new())),
+            list: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     async fn get_users(&self) -> impl IntoResponse {
-        let data = self.list.lock().await;
+        let data: HashMap<u16, User> = self.list.lock().await.clone();
+        let values: Vec<User> = data.into_values().collect();
+
         println!("Getting all users");
-        (StatusCode::OK, Json(data.clone()))
+
+        (StatusCode::OK, Json(values))
     }
 
     async fn create_user(&self, Json(new_user): Json<User>) -> impl IntoResponse {
-        let mut data = self.list.lock().await;
+        let mut list = self.list.lock().await;
         println!("Add new user {}", new_user.name);
-        data.push(new_user);
-        StatusCode::CREATED
+        let id = (list.len() + 1) as u16;
+        list.insert(id, new_user.clone());
+
+        (StatusCode::CREATED, Json(id))
     }
 
-    async fn get_user(&self, id: u32) -> impl IntoResponse{
+    async fn get_user(&self, id: u16) -> impl IntoResponse{
         let data = self.list.lock().await;
-        let user = data.iter().find(|user| user.id == id).cloned();
+        let user = data.get(&id).cloned();
+
         match user {
             Some(user) => {
                 println!("Found user {}", user.name);
@@ -52,40 +59,33 @@ impl Users {
         }
     }
 
-    // async fn update_user(&self,  id: u32, user: User) -> impl IntoResponse{
-    //     let data = self.list.lock().await;
-    //     let user = data.iter().find(|user| user.id == user.id).cloned();
-    //     match user {
-    //         Some(user) => {
-    //             user.name =
-    //
-    //             println!("Found user {}", user.name);
-    //             (StatusCode::CREATED, Json(user)).into_response()
-    //         },
-    //         None => {
-    //             println!("Did not found user with id {id}");
-    //             StatusCode::NOT_FOUND.into_response()
-    //         }
-    //     }
-    // }
-
+    async fn update_user(&self, id: u16, updated_user: User) -> impl IntoResponse{
+        let mut data = self.list.lock().await;
+        if data.contains_key(&id) {
+            data.insert(id.clone(), updated_user.clone());
+            println!("Updated user {id}");
+            (StatusCode::OK, Json(updated_user)).into_response()
+        } else {
+            StatusCode::NOT_FOUND.into_response()
+        }
+    }
 }
 
 pub async fn get_users_handler(users: Extension<Arc<Users>>) -> impl IntoResponse {
-    users.get_users().await;
+    users.get_users().await
 }
 
 pub async fn create_user_handler(users: Extension<Arc<Users>>, Json(new_user): Json<User>) -> impl IntoResponse {
     users.create_user(Json(new_user)).await
 }
 
-pub async fn get_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u32>) -> impl IntoResponse {
-    users.get_user(id).await
+pub async fn get_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>) -> impl IntoResponse {
+    return users.get_user(id).await
 }
 
-// pub async fn update_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u32>, Json(user): Json<User>) -> impl IntoResponse {
-    // users.update_user(id, user).await
-// }
+pub async fn update_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>, Json(user): Json<User>) -> impl IntoResponse {
+    users.update_user(id, user).await
+}
 
 
 
