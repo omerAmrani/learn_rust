@@ -1,4 +1,4 @@
-use crate::server::{create_user_handler, get_user_handler, get_users_handler, update_user_handler, Users};
+use crate::server::{create_user_handler, delete_user_handler, get_user_handler, get_users_handler, update_user_handler, Users};
 use axum::{Router, routing::get};
 use std::sync::Arc;
 use axum::extract::Extension;
@@ -12,7 +12,7 @@ async fn main() {
 
     let user_routes = Router::new()
         .route("/", get(get_users_handler).post(create_user_handler))
-        .route("/:id", get(get_user_handler).put(update_user_handler));
+        .route("/:id", get(get_user_handler).put(update_user_handler).delete(delete_user_handler));
 
     let app = Router::new()
         .nest("/users", user_routes)

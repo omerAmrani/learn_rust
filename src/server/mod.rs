@@ -66,7 +66,21 @@ impl Users {
             println!("Updated user {id}");
             (StatusCode::OK, Json(updated_user)).into_response()
         } else {
+            println!("Did not found user with id {id}");
             StatusCode::NOT_FOUND.into_response()
+        }
+    }
+
+
+    async fn delete_user(&self, id: u16) -> impl IntoResponse {
+        let mut data = self.list.lock().await;
+        if data.contains_key(&id) {
+            data.remove(&id);
+            println!("Deleted user with id {id}");
+            StatusCode::OK
+        } else {
+            println!("Did not found user with id {id}");
+            StatusCode::NOT_FOUND
         }
     }
 }
@@ -85,6 +99,10 @@ pub async fn get_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>)
 
 pub async fn update_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>, Json(user): Json<User>) -> impl IntoResponse {
     users.update_user(id, user).await
+}
+
+pub async fn delete_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>) -> impl IntoResponse {
+    users.delete_user(id).await
 }
 
 
