@@ -2,8 +2,7 @@ mod common;
 
 use std::collections::HashMap;
 use std::sync::{Arc};
-
-use poem_openapi::{payload::Json, OpenApi};
+use poem_openapi::{payload::Json, OpenApi, Tags};
 use tokio::sync::Mutex;
 use poem::{web::Data, Result};
 use poem::web::Path;
@@ -50,7 +49,6 @@ impl Users {
             Some(user) => {
                 println!("Found user {}", user.name);
                 Ok(GetResponse::Created(Json(user)))
-                // (StatusCode::CREATED, Json(user)).into_response()
             },
             None => {
                 println!("Did not found user with id {id}");
@@ -86,37 +84,43 @@ impl Users {
     }
 }
 
+#[derive(Tags)]
+enum ApiTags {
+    UsersBuild,
+    ById
+}
+
+
 pub struct UsersApi;
 
-#[OpenApi]
+#[OpenApi(prefix_path = "/users", tag= "ApiTags::UsersBuild")]
 impl UsersApi {
-    #[oai(path = "/users", method = "get")]
+    /// Get all users
+    #[oai(path = "/", method = "get")]
     async fn get_users_handler(&self, users: Data<&Users>) -> Result<Json<Vec<User>>> {
         users.get_users().await
     }
 
-    #[oai(path = "/users", method = "post")]
+    #[oai(path = "/", method = "post")]
     async fn create_user_handler(&self, users: Data<&Users>, Json(new_user): Json<User>) -> Result<CreateResponse> {
         users.create_user(Json(new_user)).await
     }
 
-    #[oai(path = "/users:id", method = "get")]
+    #[oai(path = "/:id", method = "get", tag="ApiTags::ById")]
     async fn get_user_handler(&self, users: Data<&Users>, id: Path<u16>) -> Result<GetResponse> {
         return users.get_user(id.0).await
     }
 
-    #[oai(path = "/users:id", method = "put")]
+    #[oai(path = "/:id", method = "put", tag="ApiTags::ById")]
     pub async fn update_user_handler(&self, users: Data<&Users>, id: Path<u16>, Json(user): Json<User>) -> Result<GetResponse> {
         users.update_user(id.0, user).await
     }
 
-    #[oai(path = "/users:id", method = "delete")]
+    #[oai(path = "/:id", method = "delete", tag="ApiTags::ById")]
     pub async fn delete_user_handler(&self, users: Data<&Users>, id: Path<u16>) -> Result<DeleteResponse> {
         users.delete_user(id.0).await
     }
 }
-
-
 
 
 
