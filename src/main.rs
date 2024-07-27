@@ -1,27 +1,33 @@
-use crate::server::{create_user_handler, delete_user_handler, get_user_handler, get_users_handler, update_user_handler, Users};
-use axum::{Router, routing::get};
-use std::sync::Arc;
-use axum::extract::Extension;
+use std::io::Error;
+use poem::{listener::TcpListener, Route, Server, Result, EndpointExt};
+use poem::middleware::Cors;
+use poem_openapi::{OpenApiService};
+use crate::server::{Users, UsersApi};
 
 mod server;
 mod basic;
 
 #[tokio::main]
-async fn main() {
-    let users = Arc::new(Users::new());
+async fn main() -> Result<(), Error> {
 
-    let user_routes = Router::new()
-        .route("/", get(get_users_handler).post(create_user_handler))
-        .route("/:id", get(get_user_handler).put(update_user_handler).delete(delete_user_handler));
+    let users = Users::new();
+    let users_service =
+        OpenApiService::new(UsersApi, "My Rust App", "1.0").server("http://localhost:3000");
 
-    let app = Router::new()
-        .nest("/users", user_routes)
-        .layer(Extension(users));
+    let ui = users_service.swagger_ui();
+    let spec = users_service.spec();
 
-  println!("Started running on 0.0.0.0:3000 ");
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let route = Route::new()
+        .nest("/", users_service)
+        .nest("/api", ui)
+        .at("/spec", poem::endpoint::make_sync(move |_| spec.clone()))
+        .with(Cors::new())
+        .data(users);
 
+    Server::new(TcpListener::bind("127.0.0.1:3000"))
+        .run(route)
+        .await?;
+    Ok(())
 }
 

@@ -1,21 +1,18 @@
+mod common;
+
 use std::collections::HashMap;
 use std::sync::{Arc};
-use axum::http::{StatusCode};
-use axum::{Extension, Json};
-use axum::extract::Path;
-use axum::response::{IntoResponse};
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct User {
-    name: String,
-    password: String
-}
+use poem_openapi::{payload::Json, OpenApi};
+use tokio::sync::Mutex;
+use poem::{web::Data, Result};
+use poem::web::Path;
+use crate::server::common::{CreateResponse, DeleteResponse, GetResponse, User};
+
 
 #[derive(Clone)]
 pub struct Users {
-    list: Arc<Mutex<HashMap<u16, User>>>,
+    pub(crate) list: Arc<Mutex<HashMap<u16, User>>>,
 }
 
 impl Users {
@@ -25,85 +22,104 @@ impl Users {
         }
     }
 
-    async fn get_users(&self) -> impl IntoResponse {
-        let data: HashMap<u16, User> = self.list.lock().await.clone();
-        let values: Vec<User> = data.into_values().collect();
-
+    async fn get_users(&self) -> Result<Json<Vec<User>>> {
+        let data= self.list.lock().await;
+        let values: Vec<User> = data.values().cloned().collect();
+        
         println!("Getting all users");
 
-        (StatusCode::OK, Json(values))
+        Ok(Json(values))
     }
 
-    async fn create_user(&self, Json(new_user): Json<User>) -> impl IntoResponse {
+    async fn create_user(&self, Json(new_user): Json<User>) -> Result<CreateResponse> {
         let mut list = self.list.lock().await;
         println!("Add new user {}", new_user.name);
         let id = (list.len() + 1) as u16;
         list.insert(id, new_user.clone());
 
-        (StatusCode::CREATED, Json(id))
+        // Ok(Json(id))
+        Ok(CreateResponse::Created(Json(id)))
+
     }
 
-    async fn get_user(&self, id: u16) -> impl IntoResponse{
+    async fn get_user(&self, id: u16) -> Result<GetResponse> {
         let data = self.list.lock().await;
         let user = data.get(&id).cloned();
 
         match user {
             Some(user) => {
                 println!("Found user {}", user.name);
-                (StatusCode::CREATED, Json(user)).into_response()
+                Ok(GetResponse::Created(Json(user)))
+                // (StatusCode::CREATED, Json(user)).into_response()
             },
             None => {
                 println!("Did not found user with id {id}");
-                StatusCode::NOT_FOUND.into_response()
+                Ok(GetResponse::NotFound)
             }
         }
     }
 
-    async fn update_user(&self, id: u16, updated_user: User) -> impl IntoResponse{
+    async fn update_user(&self, id: u16, updated_user: User) -> Result<GetResponse>{
         let mut data = self.list.lock().await;
         if data.contains_key(&id) {
             data.insert(id.clone(), updated_user.clone());
             println!("Updated user {id}");
-            (StatusCode::OK, Json(updated_user)).into_response()
+
+            Ok(GetResponse::Created(Json(updated_user)))
         } else {
             println!("Did not found user with id {id}");
-            StatusCode::NOT_FOUND.into_response()
+            Ok(GetResponse::NotFound)
         }
     }
 
 
-    async fn delete_user(&self, id: u16) -> impl IntoResponse {
+    async fn delete_user(&self, id: u16) -> Result<DeleteResponse> {
         let mut data = self.list.lock().await;
         if data.contains_key(&id) {
             data.remove(&id);
             println!("Deleted user with id {id}");
-            StatusCode::OK
+            Ok(DeleteResponse::Ok)
         } else {
             println!("Did not found user with id {id}");
-            StatusCode::NOT_FOUND
+            Ok(DeleteResponse::NotFound)
         }
     }
 }
 
-pub async fn get_users_handler(users: Extension<Arc<Users>>) -> impl IntoResponse {
-    users.get_users().await
+pub struct UsersApi;
+
+#[OpenApi]
+impl UsersApi {
+    #[oai(path = "/users", method = "get")]
+    async fn get_users_handler(&self, users: Data<&Users>) -> Result<Json<Vec<User>>> {
+        users.get_users().await
+    }
+
+    #[oai(path = "/users", method = "post")]
+    async fn create_user_handler(&self, users: Data<&Users>, Json(new_user): Json<User>) -> Result<CreateResponse> {
+        users.create_user(Json(new_user)).await
+    }
+
+    #[oai(path = "/users:id", method = "get")]
+    async fn get_user_handler(&self, users: Data<&Users>, id: Path<u16>) -> Result<GetResponse> {
+        return users.get_user(id.0).await
+    }
+
+    #[oai(path = "/users:id", method = "put")]
+    pub async fn update_user_handler(&self, users: Data<&Users>, id: Path<u16>, Json(user): Json<User>) -> Result<GetResponse> {
+        users.update_user(id.0, user).await
+    }
+
+    #[oai(path = "/users:id", method = "delete")]
+    pub async fn delete_user_handler(&self, users: Data<&Users>, id: Path<u16>) -> Result<DeleteResponse> {
+        users.delete_user(id.0).await
+    }
 }
 
-pub async fn create_user_handler(users: Extension<Arc<Users>>, Json(new_user): Json<User>) -> impl IntoResponse {
-    users.create_user(Json(new_user)).await
-}
 
-pub async fn get_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>) -> impl IntoResponse {
-    return users.get_user(id).await
-}
 
-pub async fn update_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>, Json(user): Json<User>) -> impl IntoResponse {
-    users.update_user(id, user).await
-}
 
-pub async fn delete_user_handler(users: Extension<Arc<Users>>, Path(id): Path<u16>) -> impl IntoResponse {
-    users.delete_user(id).await
-}
+
 
 
 
