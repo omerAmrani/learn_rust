@@ -10,24 +10,26 @@ mod basic;
 #[tokio::main]
 async fn main() -> Result<(), Error> {
 
-    let users = Todos::new();
-    let users_service =
-        OpenApiService::new(TodosApi, "My Rust App", "1.0").server("http://localhost:3000");
+    let todos = Todos::new();
+    let todos_service =
+        OpenApiService::new(TodosApi, "My Rust App", "1.0").server("http://0.0.0.0:3000");
 
-    let ui = users_service.swagger_ui();
-    let spec = users_service.spec();
-
+    let ui = todos_service.swagger_ui();
+    let spec = todos_service.spec();
 
     let route = Route::new()
-        .nest("/", users_service)
+        .nest("/", todos_service)
         .nest("/api", ui)
         .at("/spec", poem::endpoint::make_sync(move |_| spec.clone()))
         .with(Cors::new())
-        .data(users);
+        .data(todos);
 
-    Server::new(TcpListener::bind("127.0.0.1:3000"))
+    println!("Server is Running on port 3000");
+    Server::new(TcpListener::bind("0.0.0.0:3000"))
         .run(route)
         .await?;
+
+
     Ok(())
 }
 

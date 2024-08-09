@@ -1,0 +1,11 @@
+
+version: '3'
+
+tasks:
+
+  build-image:
+    - docker build -f '.\docker\Dockerfile' -t app:latest .
+
+  compose-up:
+    - docker compose -f '.\docker\compose.yml' up -d
+
