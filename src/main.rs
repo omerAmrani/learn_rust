@@ -2,7 +2,7 @@ use std::io::Error;
 use poem::{listener::TcpListener, Route, Server, Result, EndpointExt};
 use poem::middleware::Cors;
 use poem_openapi::{OpenApiService};
-use crate::server::{Users, UsersApi};
+use crate::server::{Todos, TodosApi};
 
 mod server;
 mod basic;
@@ -10,9 +10,9 @@ mod basic;
 #[tokio::main]
 async fn main() -> Result<(), Error> {
 
-    let users = Users::new();
+    let users = Todos::new();
     let users_service =
-        OpenApiService::new(UsersApi, "My Rust App", "1.0").server("http://localhost:3000");
+        OpenApiService::new(TodosApi, "My Rust App", "1.0").server("http://localhost:3000");
 
     let ui = users_service.swagger_ui();
     let spec = users_service.spec();

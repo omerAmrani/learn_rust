@@ -6,79 +6,77 @@ use poem_openapi::{payload::Json, OpenApi, Tags};
 use tokio::sync::Mutex;
 use poem::{web::Data, Result};
 use poem::web::Path;
-use crate::server::common::{CreateResponse, DeleteResponse, GetResponse, User};
+use crate::server::common::{CreateResponse, DeleteResponse, GetResponse, Todo};
 
 
 #[derive(Clone)]
-pub struct Users {
-    pub(crate) list: Arc<Mutex<HashMap<u16, User>>>,
+pub struct Todos {
+    pub(crate) list: Arc<Mutex<HashMap<u16, Todo>>>,
 }
 
-impl Users {
+impl Todos {
     pub fn new() -> Self {
-        Users {
+        Todos {
             list: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    async fn get_users(&self) -> Result<Json<Vec<User>>> {
+    async fn get_todos(&self) -> Result<Json<Vec<Todo>>> {
         let data= self.list.lock().await;
-        let values: Vec<User> = data.values().cloned().collect();
+        let values: Vec<Todo> = data.values().cloned().collect();
         
-        println!("Getting all users");
+        println!("Getting all todos");
 
         Ok(Json(values))
     }
 
-    async fn create_user(&self, Json(new_user): Json<User>) -> Result<CreateResponse> {
+    async fn create_todo(&self, Json(new_todo): Json<Todo>) -> Result<CreateResponse> {
         let mut list = self.list.lock().await;
-        println!("Add new user {}", new_user.name);
+        println!("Add new todo {}", new_todo.name);
         let id = (list.len() + 1) as u16;
-        list.insert(id, new_user.clone());
+        list.insert(id, new_todo.clone());
 
-        // Ok(Json(id))
         Ok(CreateResponse::Created(Json(id)))
-
     }
 
-    async fn get_user(&self, id: u16) -> Result<GetResponse> {
+    async fn todo(&self, id: u16) -> Result<GetResponse> {
         let data = self.list.lock().await;
-        let user = data.get(&id).cloned();
+        let todo = data.get(&id).cloned();
 
-        match user {
-            Some(user) => {
-                println!("Found user {}", user.name);
-                Ok(GetResponse::Created(Json(user)))
-            },
+        match todo {
+            Some(todo) => {
+                println!("Found todo {}", todo.name);
+                Ok(GetResponse::Created(Json(todo)))
+            }
             None => {
-                println!("Did not found user with id {id}");
+                println!("Did not found todo with id {id}");
                 Ok(GetResponse::NotFound)
             }
         }
     }
 
-    async fn update_user(&self, id: u16, updated_user: User) -> Result<GetResponse>{
+    async fn update_todo(&self, id: u16, updated_todo: Todo) -> Result<GetResponse>{
         let mut data = self.list.lock().await;
         if data.contains_key(&id) {
-            data.insert(id.clone(), updated_user.clone());
-            println!("Updated user {id}");
+            data.insert(id.clone(), updated_todo.clone());
+            println!("Updated todo {id}");
 
-            Ok(GetResponse::Created(Json(updated_user)))
+            Ok(GetResponse::Created(Json(updated_todo)))
         } else {
-            println!("Did not found user with id {id}");
+            println!("Did not found todo with id {id}");
             Ok(GetResponse::NotFound)
         }
     }
 
 
-    async fn delete_user(&self, id: u16) -> Result<DeleteResponse> {
+    async fn delete_todo(&self, id: u16) -> Result<DeleteResponse> {
         let mut data = self.list.lock().await;
         if data.contains_key(&id) {
             data.remove(&id);
-            println!("Deleted user with id {id}");
+            println!("Deleted todo with id {id}");
             Ok(DeleteResponse::Ok)
         } else {
-            println!("Did not found user with id {id}");
+            println!("Did not found todo with id {id}");
             Ok(DeleteResponse::NotFound)
         }
     }
@@ -86,39 +84,39 @@ impl Users {
 
 #[derive(Tags)]
 enum ApiTags {
-    UsersBuild,
+    Todo ,
     ById
 }
 
 
-pub struct UsersApi;
+pub struct TodosApi;
 
-#[OpenApi(prefix_path = "/users", tag= "ApiTags::UsersBuild")]
-impl UsersApi {
-    /// Get all users
+#[OpenApi(prefix_path = "/todos", tag= "ApiTags::Todo")]
+impl TodosApi {
+    /// Get all todos
     #[oai(path = "/", method = "get")]
-    async fn get_users_handler(&self, users: Data<&Users>) -> Result<Json<Vec<User>>> {
-        users.get_users().await
+    async fn get_todos_handler(&self, todos: Data<&Todos>) -> Result<Json<Vec<Todo>>> {
+        todos.get_todos().await
     }
 
     #[oai(path = "/", method = "post")]
-    async fn create_user_handler(&self, users: Data<&Users>, Json(new_user): Json<User>) -> Result<CreateResponse> {
-        users.create_user(Json(new_user)).await
+    async fn create_todo_handler(&self, todos: Data<&Todos>, Json(new_todo): Json<Todo>) -> Result<CreateResponse> {
+        todos.create_todo(Json(new_todo)).await
     }
 
     #[oai(path = "/:id", method = "get", tag="ApiTags::ById")]
-    async fn get_user_handler(&self, users: Data<&Users>, id: Path<u16>) -> Result<GetResponse> {
-        return users.get_user(id.0).await
+    async fn get_todo_handler(&self, todos: Data<&Todos>, id: Path<u16>) -> Result<GetResponse> {
+        return todos.todo(id.0).await
     }
 
     #[oai(path = "/:id", method = "put", tag="ApiTags::ById")]
-    pub async fn update_user_handler(&self, users: Data<&Users>, id: Path<u16>, Json(user): Json<User>) -> Result<GetResponse> {
-        users.update_user(id.0, user).await
+    pub async fn update_todo_handler(&self, todos: Data<&Todos>, id: Path<u16>, Json(todo): Json<Todo>) -> Result<GetResponse> {
+        todos.update_todo(id.0, todo).await
     }
 
     #[oai(path = "/:id", method = "delete", tag="ApiTags::ById")]
-    pub async fn delete_user_handler(&self, users: Data<&Users>, id: Path<u16>) -> Result<DeleteResponse> {
-        users.delete_user(id.0).await
+    pub async fn delete_todo_handler(&self, todos: Data<&Todos>, id: Path<u16>) -> Result<DeleteResponse> {
+        todos.delete_todo(id.0).await
     }
 }
 
